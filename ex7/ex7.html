@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Exercise 7</title>
+</head>
+<body>
+<h1>Exercise 7</h1>
+
+<button type="button" name="button" class="foobar">Click Me</button>
+
+<script src="npo.js"></script>
+<script src="asq.bundle.js"></script>
+<script src="ex7.js"></script>
+<script src="Rx.min.js"></script>
+
+<script type="text/javascript">
+  let btn = document.querySelector("button");
+  let btnClicks = Rx.Observable.fromEvent(btn, "click");
+
+  btnClicks
+    .map(function mapper(evt) {
+      return evt.target.className;
+    })
+    .filter(function filterer(className) {
+      return /foobar/.test(className);
+    })
+    .distinctUntilChanged()
+    .subscribe(function subscriber(data) {
+      console.log(data);
+    })
+</script>
+
+</body>
+</html>

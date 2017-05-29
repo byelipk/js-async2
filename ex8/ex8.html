@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Exercise 8</title>
+</head>
+<body>
+<h1>Exercise 8</h1>
+
+<p><input id="txt" type="text" value=""></p>
+<p><input id="btn" type="button" value="click me"></p>
+<div id="list"></div>
+
+<script src="jquery.js"></script>
+<script src="asq.bundle.js"></script>
+<script src="tether.min.js"></script>
+<script src="velocity.min.js"></script>
+<script src="Rx.min.js"></script>
+<script src="fetch-jsonp.js"></script>
+
+<script type="text/javascript">
+  function buildURL(term) {
+    let apiURL = `https://en.wikipedia.org/w/api.php?`;
+    let apiAction = `&action=opensearch`;
+    let apiFormat = `&json`;
+    let apiSearch = `&search=`;
+    let apiLimit  = `&limit=5`;
+
+    return apiURL   +
+          apiAction +
+          apiLimit  +
+          apiFormat +
+          apiSearch + encodeURIComponent(term);
+  }
+
+  function getWikiSearchResults(term) {
+    // Pass it the definition of forEach so we don't need to
+    // create that object we did earlier.
+    return Rx.Observable.create(function forEach(observer) {
+      const url = buildURL(term);
+
+      let cancelled = false;
+
+      fetchJsonp(url)
+        .then(resp => resp.json())
+        .then(json => {
+          if (!cancelled) {
+            observer.next(json[1]);
+            observer.complete();
+          }
+        })
+        .catch(errv => observer.error())
+
+      return function unsubscribe() {
+        cancelled = true;
+      }
+    });
+  }
+
+
+  function fakeAjax(url) {
+    return Rx.Observable.create(function forEach(observer) {
+      // Observers are cancellable
+      let cancelled = false;
+
+      let fake_responses = {
+        "file1": "The first text",
+        "file2": "The middle text",
+        "file3": "The last text"
+      };
+
+      let randomDelay = (Math.round(Math.random() * 1E4) % 8000) + 1000;
+
+      console.log("Requesting: " + url);
+
+      let timeoutId = setTimeout(function setter() {
+        if (!cancelled) {
+          observer.next(fake_responses[url]);
+          observer.complete();
+          clearTimeout(timeoutId);
+        }
+      }, randomDelay);
+
+      return function unsubscribe() {
+        cancelled = true;
+
+        clearTimeout(timeoutId);
+      }
+    });
+  }
+
+  function output(text) {
+  	console.log(text);
+  }
+
+
+  let txt  = document.querySelector("#txt");
+  let list = document.querySelector("#list");
+  let btn  = document.querySelector("input[type=button]");
+
+  // button clicks
+  let btnClicks = Rx.Observable.fromEvent(btn, "click");
+
+  btnClicks
+    // {..1....2....3....4....
+    .throttle(evt => Rx.Observable.interval(1000))
+
+    // {..1..............4....
+    .subscribe(function subscriber(evt) {
+      let textNode = document.createTextNode("Clicked!");
+      let listNode = document.createElement("p");
+
+      listNode.appendChild(textNode);
+
+      list.appendChild(listNode);
+    });
+
+
+  // TODO AUTOCOMPLETE
+  // Text inputs
+  let txtInputs = Rx.Observable.fromEvent(txt, "input");
+
+  txtInputs
+    .throttleTime(50)
+    .map(evt => evt.target.value.trim())
+    .distinctUntilChanged()
+    .map(search => {
+      if (search) {
+        return getWikiSearchResults(search);
+      }
+      else {
+        return Rx.Observable.of([]);
+      }
+    })
+    .switch()
+    .subscribe(function subscriber(data) {
+      if (data.length > 0) {
+        output(data);
+      }
+      else {
+        output("CLEAR");
+      }
+    });
+
+  // Parallel file fetches with sequential processing
+  let s1 = fakeAjax("file1");
+  let s2 = fakeAjax("file2");
+  let s3 = fakeAjax("file3");
+
+  s1.merge(s2)
+    .merge(s3)
+    .subscribe({
+      next: x => console.log(x),
+      error: e => console.error(e),
+      complete: () => output("Complete")
+    });
+</script>
+
+</body>
+</html>
